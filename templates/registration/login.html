@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Ingresar | Manga Nook{% endblock %}
+{% block content %}
+  <section class="panel form-card">
+    <h1>Ingreso de personal</h1>
+    {% if form.errors %}<p class="muted">Usuario o contraseña incorrectos.</p>{% endif %}
+    <form method="post">{% csrf_token %}{{ form.as_p }}<input type="hidden" name="next" value="{{ next }}"><button type="submit">Ingresar</button></form>
+  </section>
+{% endblock %}

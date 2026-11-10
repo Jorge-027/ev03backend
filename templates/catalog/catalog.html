@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Catálogo | Manga Nook{% endblock %}
+{% block content %}
+  <h1>Catálogo de manga</h1>
+  <p class="muted">Busca y explora el catálogo. Las novedades aparecerán aquí cuando agregues tus mangas.</p>
+  <form class="filters" method="get">
+    <div><label for="q">Buscar</label><input id="q" name="q" value="{{ query }}" placeholder="Título, autor, código o descripción"></div>
+    <div><label for="genero">Género</label><select id="genero" name="genero"><option value="">Todos los géneros</option>{% for genre in genres %}<option value="{{ genre.slug }}" {% if selected_genre == genre.slug %}selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></div>
+    <button type="submit">Filtrar</button>
+  </form>
+  <section class="grid">
+    {% for manga in mangas %}
+      <article class="card">
+        <a href="{% url 'catalog:manga_detail' manga.slug %}">
+          {% if manga.cover %}<img class="cover" src="{{ manga.cover.url }}" alt="Portada de {{ manga.title }}">{% else %}<div class="cover placeholder">Portada no disponible</div>{% endif %}
+          <h2>{{ manga.title }}</h2>
+        </a>
+        <p class="muted">{{ manga.genre.name }}{% if manga.author %} · {{ manga.author }}{% endif %}</p>
+        <p class="price">${{ manga.price }}</p>
+        {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
+          <form method="post" action="{% url 'cart:add' manga.pk %}">{% csrf_token %}<button type="submit">Agregar al carrito</button></form>
+        {% else %}<p class="muted">{{ manga.get_status_display }}</p>{% endif %}
+      </article>
+    {% empty %}
+      <div class="panel"><h2>Tu catálogo está listo para crecer</h2><p>Aún no hay mangas para mostrar. Cuando agregues el primero desde el backoffice, aparecerá aquí.</p></div>
+    {% endfor %}
+  </section>
+{% endblock %}

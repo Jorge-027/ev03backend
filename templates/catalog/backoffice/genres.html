@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Géneros | Backoffice{% endblock %}
+{% block content %}
+  <h1>Administrar géneros</h1>
+  <p><a class="button" href="{% url 'backoffice:genre_create' %}">Agregar género</a> <a class="button secondary" href="{% url 'backoffice:dashboard' %}">Volver</a></p>
+  <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Identificador</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+    {% for genre in genres %}<tr><td>{{ genre.name }}</td><td>{{ genre.slug }}</td><td>{% if genre.is_active %}Activo{% else %}Inactivo{% endif %}</td>
+      <td><a href="{% url 'backoffice:genre_edit' genre.pk %}">Editar</a><form class="inline" method="post" action="{% url 'backoffice:genre_delete' genre.pk %}">{% csrf_token %}<button class="danger" type="submit">Eliminar</button></form></td></tr>
+    {% empty %}<tr><td colspan="4">No hay géneros registrados.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endblock %}

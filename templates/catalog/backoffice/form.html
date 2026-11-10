@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | Backoffice{% endblock %}
+{% block content %}
+  <section class="panel form-card">
+    <h1>{{ title }}</h1>
+    <form method="post" enctype="multipart/form-data">{% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit">Guardar</button>
+      <a class="button secondary" href="{% url cancel_url %}">Cancelar</a>
+    </form>
+  </section>
+{% endblock %}
