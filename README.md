@@ -29,7 +29,7 @@ El comando `poblar_datos` crea cuatro géneros y los usuarios locales de prueba 
 - Ficha pública para cada manga activo.
 - Carrito temporal por sesión con ajuste de cantidades, cálculo de subtotal y vaciado.
 - Backoffice restringido a usuarios `staff` para crear, editar y dar de baja lógica mangas, y administrar géneros.
-- Django Admin con filtros, búsqueda y columnas adaptadas a los modelos.
+- Django Admin con identidad Manga Nook, filtros y búsqueda por catálogo, columnas operativas y edición rápida del stock desde la grilla.
 - Los mangas y géneros no se eliminan físicamente desde el backoffice; la baja de mangas desactiva el registro.
 
 ## Configuración

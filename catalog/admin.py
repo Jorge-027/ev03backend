@@ -2,9 +2,9 @@ from django.contrib import admin
 
 from .models import Genre, Manga
 
-admin.site.site_header = "Manga Nook | Administración"
-admin.site.site_title = "Manga Nook"
-admin.site.index_title = "Gestión de la tienda"
+admin.site.site_header = "Manga Nook - Panel de Control"
+admin.site.site_title = "Manga Nook Admin"
+admin.site.index_title = "Gestión Operativa de Recursos y Servicios"
 
 
 @admin.register(Genre)
@@ -17,8 +17,8 @@ class GenreAdmin(admin.ModelAdmin):
 
 @admin.register(Manga)
 class MangaAdmin(admin.ModelAdmin):
-    list_display = ("title", "code", "genre", "price", "stock", "status", "is_active")
-    list_editable = ("is_active",)
+    list_display = ("code", "title", "genre", "price", "stock", "status", "is_active")
+    list_editable = ("stock",)
     list_filter = ("genre", "status", "is_active")
     search_fields = ("title", "code", "author", "description")
     prepopulated_fields = {"slug": ("title",)}
