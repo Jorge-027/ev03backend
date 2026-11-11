@@ -13,6 +13,7 @@ from django.urls import reverse
 from PIL import Image
 
 from .admin import GenreAdmin, MangaAdmin
+from .formatting import format_clp
 from .forms import MangaForm
 from .models import Genre, Manga, UserProfile
 
@@ -50,9 +51,12 @@ class SpanishRouteNameTests(TestCase):
 
 
 class DjangoAdminConfigurationTests(TestCase):
-    def test_admin_site_uses_manga_nook_identity(self):
-        self.assertEqual(admin.site.site_header, "Manga Nook - Panel de Control")
-        self.assertEqual(admin.site.site_title, "Manga Nook Admin")
+    def test_admin_site_uses_store_identity(self):
+        self.assertEqual(
+            admin.site.site_header,
+            "Manga's Bizarre Buying - Panel de Control",
+        )
+        self.assertEqual(admin.site.site_title, "Manga's Bizarre Buying Admin")
         self.assertEqual(
             admin.site.index_title,
             "Gestión Operativa de Recursos y Servicios",
@@ -61,7 +65,15 @@ class DjangoAdminConfigurationTests(TestCase):
     def test_manga_admin_exposes_catalog_fields_and_inline_stock_editing(self):
         self.assertEqual(
             MangaAdmin.list_display,
-            ("code", "title", "genre", "price", "stock", "status", "is_active"),
+            (
+                "code",
+                "title",
+                "genre",
+                "formatted_price",
+                "stock",
+                "status",
+                "is_active",
+            ),
         )
         self.assertEqual(MangaAdmin.list_filter, ("genre", "status", "is_active"))
         self.assertEqual(
@@ -69,6 +81,9 @@ class DjangoAdminConfigurationTests(TestCase):
             ("title", "code", "author", "description"),
         )
         self.assertIn("stock", MangaAdmin.list_editable)
+
+    def test_price_format_uses_period_thousands_and_no_decimals(self):
+        self.assertEqual(format_clp(Decimal("1234567.89")), "1.234.568")
 
     def test_genre_admin_uses_decorator_registered_configuration(self):
         self.assertIsInstance(admin.site._registry[Genre], GenreAdmin)

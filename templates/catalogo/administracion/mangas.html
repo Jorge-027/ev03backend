@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load catalog_formatters %}
 {% block title %}Mangas | Administración{% endblock %}
 {% block content %}
   <h1>Administrar mangas</h1>
   <p><a class="btn btn-dark" href="{% url 'backoffice:manga_create' %}">Agregar manga</a> <a class="button secondary" href="{% url 'backoffice:dashboard' %}">Volver</a></p>
   <div class="table-wrap"><table class="table table-hover align-middle"><thead><tr><th>Título / código</th><th>Género</th><th>Precio</th><th>Estado</th><th>Catálogo</th><th>Acciones</th></tr></thead><tbody>
     {% for manga in mangas %}<tr>
-      <td>{{ manga.title }}<br><span class="muted">{{ manga.code }}</span></td><td>{{ manga.genre.name }}</td><td>${{ manga.price }}</td><td>{{ manga.get_status_display }}</td><td>{% if manga.is_active %}Activo{% else %}Inactivo{% endif %}</td>
+      <td>{{ manga.title }}<br><span class="muted">{{ manga.code }}</span></td><td>{{ manga.genre.name }}</td><td>${{ manga.price|clp }}</td><td>{{ manga.get_status_display }}</td><td>{% if manga.is_active %}Activo{% else %}Inactivo{% endif %}</td>
       <td><a class="btn btn-outline-dark btn-sm" href="{% url 'backoffice:manga_edit' manga.pk %}">Editar</a>
         {% if manga.is_active %}<form class="inline" method="post" action="{% url 'backoffice:manga_deactivate' manga.pk %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">Dar de baja</button></form>{% endif %}
       </td>

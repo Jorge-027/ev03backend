@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Catálogo | Manga Nook{% endblock %}
+{% load catalog_formatters %}
+{% block title %}Catálogo | Manga's Bizarre Buying{% endblock %}
 {% block content %}
   <h1>Catálogo de manga</h1>
-  <p class="muted">Busca y explora el catálogo. Las novedades aparecerán aquí cuando agregues tus mangas.</p>
+  <p class="muted">Busca y explora el catálogo que tenemos en la tienda.</p>
   <form class="filters" method="get">
     <div><label for="q" class="form-label">Buscar</label><input class="form-control" id="q" name="q" value="{{ query }}" placeholder="Título, autor, código o descripción"></div>
     <div><label for="genero" class="form-label">Género</label><select class="form-select" id="genero" name="genero"><option value="">Todos los géneros</option>{% for genre in genres %}<option value="{{ genre.slug }}" {% if selected_genre == genre.slug %}selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></div>
@@ -25,7 +26,7 @@
           <div class="card-body d-flex flex-column">
             <h2 class="h5 card-title"><a href="{% url 'catalogo:detalle_manga' manga.slug %}">{{ manga.title }}</a></h2>
             <p class="muted mb-2">{{ manga.genre.name }}{% if manga.author %} · {{ manga.author }}{% endif %}</p>
-            <p class="price mt-auto">${{ manga.price }}</p>
+            <p class="price mt-auto">${{ manga.price|clp }}</p>
             {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
               <form method="post" action="{% url 'carrito:agregar' manga.pk %}">{% csrf_token %}<button class="btn btn-dark" type="submit">Agregar al carrito</button></form>
             {% else %}<p class="muted mb-0">{{ manga.get_status_display }}</p>{% endif %}

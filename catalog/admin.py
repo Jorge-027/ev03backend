@@ -1,9 +1,10 @@
 from django.contrib import admin
 
+from .formatting import format_clp
 from .models import Genre, Manga, UserProfile
 
-admin.site.site_header = "Manga Nook - Panel de Control"
-admin.site.site_title = "Manga Nook Admin"
+admin.site.site_header = "Manga's Bizarre Buying - Panel de Control"
+admin.site.site_title = "Manga's Bizarre Buying Admin"
 admin.site.index_title = "Gestión Operativa de Recursos y Servicios"
 
 
@@ -17,7 +18,15 @@ class GenreAdmin(admin.ModelAdmin):
 
 @admin.register(Manga)
 class MangaAdmin(admin.ModelAdmin):
-    list_display = ("code", "title", "genre", "price", "stock", "status", "is_active")
+    list_display = (
+        "code",
+        "title",
+        "genre",
+        "formatted_price",
+        "stock",
+        "status",
+        "is_active",
+    )
     list_editable = ("stock",)
     list_filter = ("genre", "status", "is_active")
     search_fields = ("title", "code", "author", "description")
@@ -27,6 +36,10 @@ class MangaAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    @admin.display(description="Precio", ordering="price")
+    def formatted_price(self, obj):
+        return f"${format_clp(obj.price)}"
 
 
 @admin.register(UserProfile)

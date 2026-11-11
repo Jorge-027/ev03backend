@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Carrito | Manga Nook{% endblock %}
+{% load catalog_formatters %}
+{% block title %}Carrito | Manga's Bizarre Buying{% endblock %}
 {% block content %}
   <h1>Carrito de sesión</h1>
   <p class="muted">Este carrito es temporal. La solicitud es simulada y no crea pedidos ni modifica inventario.</p>
@@ -9,17 +10,17 @@
       <tbody>{% for item in items %}
         <tr>
           <td><a href="{% url 'catalogo:detalle_manga' item.manga.slug %}">{{ item.manga.title }}</a></td>
-          <td>${{ item.manga.price }}</td>
+          <td>${{ item.manga.price|clp }}</td>
           <td><form class="inline" method="post" action="{% url 'carrito:actualizar' item.manga.pk %}">{% csrf_token %}<input aria-label="Cantidad" name="quantity" type="number" min="0" value="{{ item.quantity }}" style="width:82px"><button class="button secondary" type="submit">Actualizar</button></form></td>
-          <td>${{ item.subtotal }}</td>
+          <td>${{ item.subtotal|clp }}</td>
           <td><form method="post" action="{% url 'carrito:quitar' item.manga.pk %}">{% csrf_token %}<button class="danger" type="submit">Quitar</button></form></td>
         </tr>
       {% endfor %}</tbody>
     </table></div>
     <section class="panel my-3">
-      <p>Subtotal: ${{ subtotal }}</p>
-      <p>Impuestos/recargos: ${{ tax }}</p>
-      <h2>Total estimado: ${{ total }}</h2>
+      <p>Subtotal: ${{ subtotal|clp }}</p>
+      <p>Impuestos/recargos: ${{ tax|clp }}</p>
+      <h2>Total estimado: ${{ total|clp }}</h2>
     </section>
     <form method="post" action="{% url 'carrito:solicitar' %}" class="mb-3">{% csrf_token %}<button type="submit">Generar solicitud simulada</button></form>
     <form method="post" action="{% url 'carrito:vaciar' %}">{% csrf_token %}<button class="button secondary" type="submit">Vaciar carrito</button></form>

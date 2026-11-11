@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Solicitud {{ receipt.number }} | Manga Nook{% endblock %}
+{% load catalog_formatters %}
+{% block title %}Solicitud {{ receipt.number }} | Manga's Bizarre Buying{% endblock %}
 {% block content %}
   <section class="panel">
     <h1>Solicitud simulada generada</h1>
@@ -13,17 +14,17 @@
             <tr>
               <td>{{ item.title }}</td>
               <td>{{ item.code }}</td>
-              <td>${{ item.unit_price }}</td>
+              <td>${{ item.unit_price|clp }}</td>
               <td>{{ item.quantity }}</td>
-              <td>${{ item.subtotal }}</td>
+              <td>${{ item.subtotal|clp }}</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    <p>Subtotal: ${{ receipt.subtotal }}</p>
-    <p>Impuestos/recargos: ${{ receipt.tax }}</p>
-    <h2>Total final: ${{ receipt.total }}</h2>
+    <p>Subtotal: ${{ receipt.subtotal|clp }}</p>
+    <p>Impuestos/recargos: ${{ receipt.tax|clp }}</p>
+    <h2>Total final: ${{ receipt.total|clp }}</h2>
     <a class="button secondary" href="{% url 'catalogo:catalogo' %}">Volver al catálogo</a>
   </section>
 {% endblock %}

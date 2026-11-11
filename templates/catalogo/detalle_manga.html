@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ manga.title }} | Manga Nook{% endblock %}
+{% load catalog_formatters %}
+{% block title %}{{ manga.title }} | Manga's Bizarre Buying{% endblock %}
 {% block content %}
   <p><a href="{% url 'catalogo:catalogo' %}">← Volver al catálogo</a></p>
   <div class="grid" style="grid-template-columns:minmax(220px,350px) 1fr; align-items:start">
@@ -9,7 +10,7 @@
       <h1>{{ manga.title }}</h1>
       {% if manga.author %}<p>Por {{ manga.author }}</p>{% endif %}
       <p>{{ manga.description|default:"Sin descripción."|linebreaksbr }}</p>
-      <p class="price">${{ manga.price }}</p>
+      <p class="price">${{ manga.price|clp }}</p>
       <p>{{ manga.get_status_display }}{% if manga.stock %} · {{ manga.stock }} unidades{% endif %}</p>
       {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
         <form method="post" action="{% url 'carrito:agregar' manga.pk %}">{% csrf_token %}<button type="submit">Agregar al carrito</button></form>
