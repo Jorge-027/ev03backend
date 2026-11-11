@@ -4,6 +4,7 @@ from tempfile import TemporaryDirectory
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.test import Client
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db.models.deletion import ProtectedError
@@ -13,7 +14,7 @@ from PIL import Image
 
 from .admin import GenreAdmin, MangaAdmin
 from .forms import MangaForm
-from .models import Genre, Manga
+from .models import Genre, Manga, UserProfile
 
 
 class StoreTestCase(TestCase):
@@ -26,6 +27,26 @@ class StoreTestCase(TestCase):
             price=Decimal("12.50"),
             stock=3,
         )
+
+
+class SpanishRouteNameTests(TestCase):
+    def test_translated_routes_and_unchanged_login_route(self):
+        self.assertEqual(reverse("catalogo:catalogo"), "/")
+        self.assertEqual(
+            reverse("catalogo:detalle_manga", args=("mi-manga",)),
+            "/detalle_manga/mi-manga/",
+        )
+        self.assertEqual(reverse("carrito:detalle"), "/carrito/")
+        self.assertEqual(reverse("carrito:boleta"), "/carrito/boleta/")
+        self.assertEqual(reverse("perfil"), "/cuenta/perfil/")
+        self.assertEqual(reverse("registrarse"), "/cuenta/registrarse/")
+        self.assertEqual(reverse("login"), "/cuenta/login/")
+
+    def test_login_uses_unchanged_filename_in_spanish_templates_folder(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "cuenta/login.html")
 
 
 class DjangoAdminConfigurationTests(TestCase):
@@ -58,7 +79,7 @@ class DjangoAdminConfigurationTests(TestCase):
 class PublicCatalogTests(StoreTestCase):
     def test_catalog_supports_search_and_genre_filter(self):
         response = self.client.get(
-            reverse("catalog:catalog"),
+            reverse("catalogo:catalogo"),
             {"q": "TEST-001", "genero": "shonen"},
         )
         self.assertEqual(response.status_code, 200)
@@ -74,7 +95,7 @@ class PublicCatalogTests(StoreTestCase):
                 stock=1,
             )
 
-        response = self.client.get(reverse("catalog:catalog"), {"orden": "price"})
+        response = self.client.get(reverse("catalogo:catalogo"), {"orden": "price"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page_obj"].paginator.count, 13)
         self.assertEqual(response.context["mangas"][0].price, Decimal("1"))
@@ -85,11 +106,11 @@ class PublicCatalogTests(StoreTestCase):
         self.manga.description = "Edición especial de colección"
         self.manga.code = "TEST.001"
         self.manga.save(update_fields=("description", "code"))
-        response = self.client.get(reverse("catalog:catalog"), {"q": "colección"})
+        response = self.client.get(reverse("catalogo:catalogo"), {"q": "colección"})
         self.assertContains(response, "Manga de prueba")
 
         response = self.client.get(
-            reverse("catalog:manga_detail", args=(self.manga.code,))
+            reverse("catalogo:detalle_manga", args=(self.manga.code,))
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Manga de prueba")
@@ -97,40 +118,174 @@ class PublicCatalogTests(StoreTestCase):
     def test_inactive_manga_is_not_public(self):
         self.manga.is_active = False
         self.manga.save(update_fields=("is_active",))
-        response = self.client.get(reverse("catalog:catalog"))
+        response = self.client.get(reverse("catalogo:catalogo"))
         self.assertNotContains(response, "Manga de prueba")
 
     def test_catalog_renders_empty_state_without_seeded_mangas(self):
         Manga.objects.all().delete()
-        response = self.client.get(reverse("catalog:catalog"))
+        response = self.client.get(reverse("catalogo:catalogo"))
         self.assertContains(response, "Aún no hay mangas")
 
 
 class SessionCartTests(StoreTestCase):
     def test_cart_add_and_update_calculates_total_without_creating_orders(self):
-        self.client.post(reverse("cart:add", args=(self.manga.pk,)))
-        response = self.client.get(reverse("cart:detail"))
+        self.client.post(reverse("carrito:agregar", args=(self.manga.pk,)))
+        response = self.client.get(reverse("carrito:detalle"))
         self.assertEqual(response.context["total"], Decimal("12.50"))
 
         self.client.post(
-            reverse("cart:update", args=(self.manga.pk,)),
+            reverse("carrito:actualizar", args=(self.manga.pk,)),
             {"quantity": "2"},
         )
-        response = self.client.get(reverse("cart:detail"))
+        response = self.client.get(reverse("carrito:detalle"))
         self.assertEqual(response.context["total"], Decimal("25.00"))
         self.assertEqual(Manga.objects.count(), 1)
 
     def test_cart_cannot_exceed_available_stock(self):
-        self.client.post(reverse("cart:add", args=(self.manga.pk,)))
+        self.client.post(reverse("carrito:agregar", args=(self.manga.pk,)))
         self.client.post(
-            reverse("cart:update", args=(self.manga.pk,)),
+            reverse("carrito:actualizar", args=(self.manga.pk,)),
             {"quantity": "4"},
         )
         self.assertEqual(self.client.session["cart"][str(self.manga.pk)], 1)
 
+    def test_cart_rejects_non_numeric_quantity_without_removing_item(self):
+        self.client.post(reverse("carrito:agregar", args=(self.manga.pk,)))
+
+        response = self.client.post(
+            reverse("carrito:actualizar", args=(self.manga.pk,)),
+            {"quantity": "abc"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session["cart"][str(self.manga.pk)], 1)
+        self.assertContains(response, "Ingresa una cantidad entera válida.")
+
     def test_protected_genre_cannot_be_deleted(self):
         with self.assertRaises(ProtectedError):
             self.genre.delete()
+
+    def test_navbar_counts_cart_units_from_session(self):
+        session = self.client.session
+        session["cart"] = {str(self.manga.pk): 2}
+        session.save()
+
+        response = self.client.get(reverse("catalogo:catalogo"))
+
+        self.assertContains(response, "Carrito (2)")
+
+    def test_checkout_generates_session_receipt_and_clears_cart(self):
+        self.client.post(reverse("carrito:agregar", args=(self.manga.pk,)))
+        self.client.post(
+            reverse("carrito:actualizar", args=(self.manga.pk,)),
+            {"quantity": "2"},
+        )
+
+        response = self.client.post(reverse("carrito:solicitar"))
+
+        self.assertRedirects(response, reverse("carrito:boleta"))
+        self.assertEqual(self.client.session["cart"], {})
+        receipt = self.client.session["cart_receipt"]
+        self.assertEqual(receipt["subtotal"], "25.00")
+        self.assertEqual(receipt["tax"], "0.00")
+        self.assertEqual(receipt["total"], "25.00")
+        self.assertEqual(receipt["items"][0]["quantity"], 2)
+        self.manga.refresh_from_db()
+        self.assertEqual(self.manga.stock, 3)
+
+        response = self.client.get(reverse("carrito:boleta"))
+        self.assertContains(response, "Solicitud simulada generada")
+        self.assertContains(response, receipt["number"])
+
+    def test_checkout_rejects_empty_cart(self):
+        response = self.client.post(reverse("carrito:solicitar"))
+        self.assertRedirects(response, reverse("carrito:detalle"))
+        self.assertNotIn("cart_receipt", self.client.session)
+
+    def test_checkout_revalidates_stock_and_preserves_cart_when_unavailable(self):
+        self.client.post(reverse("carrito:agregar", args=(self.manga.pk,)))
+        self.manga.stock = 0
+        self.manga.save(update_fields=("stock",))
+
+        response = self.client.post(reverse("carrito:solicitar"))
+
+        self.assertRedirects(response, reverse("carrito:detalle"))
+        self.assertEqual(self.client.session["cart"], {str(self.manga.pk): 1})
+        self.assertNotIn("cart_receipt", self.client.session)
+
+
+class AccountTests(TestCase):
+    def test_registration_creates_standard_user_and_profile(self):
+        response = self.client.post(
+            reverse("registrarse"),
+            {
+                "username": "lector",
+                "email": "lector@example.com",
+                "password1": "S3curePass!word99",
+                "password2": "S3curePass!word99",
+            },
+        )
+
+        self.assertRedirects(response, reverse("login"))
+        user = get_user_model().objects.get(username="lector")
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(UserProfile.objects.filter(user=user).exists())
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_profile_requires_login_and_can_be_updated(self):
+        response = self.client.get(reverse("perfil"))
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('perfil')}",
+        )
+
+        user = get_user_model().objects.create_user(
+            username="perfil",
+            password="S3curePass!word99",
+        )
+        self.client.force_login(user)
+        response = self.client.post(
+            reverse("perfil"),
+            {
+                "rut": "21.986.602-K",
+                "phone": "+56912345678",
+                "institutional_role": UserProfile.InstitutionalRole.STUDENT,
+            },
+        )
+        self.assertRedirects(response, reverse("perfil"))
+        profile = UserProfile.objects.get(user=user)
+        self.assertEqual(profile.rut, "21.986.602-K")
+        self.assertEqual(profile.phone, "+56912345678")
+        self.assertEqual(
+            profile.institutional_role,
+            UserProfile.InstitutionalRole.STUDENT,
+        )
+
+    def test_login_logout_and_csrf_protection(self):
+        user = get_user_model().objects.create_user(
+            username="sesiones",
+            password="S3curePass!word99",
+        )
+        self.assertTrue(
+            self.client.login(username=user.username, password="S3curePass!word99")
+        )
+        self.assertEqual(self.client.get(reverse("perfil")).status_code, 200)
+        self.assertRedirects(self.client.post(reverse("logout")), reverse("catalogo:catalogo"))
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        response = csrf_client.post(
+            reverse("registrarse"),
+            {
+                "username": "sin-csrf",
+                "email": "sin-csrf@example.com",
+                "password1": "S3curePass!word99",
+                "password2": "S3curePass!word99",
+            },
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(get_user_model().objects.filter(username="sin-csrf").exists())
 
 
 class BackofficeTests(StoreTestCase):

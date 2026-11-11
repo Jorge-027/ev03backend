@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ manga.title }} | Manga Nook{% endblock %}
 {% block content %}
-  <p><a href="{% url 'catalog:catalog' %}">← Volver al catálogo</a></p>
+  <p><a href="{% url 'catalogo:catalogo' %}">← Volver al catálogo</a></p>
   <div class="grid" style="grid-template-columns:minmax(220px,350px) 1fr; align-items:start">
     <div>{% if manga.cover %}<img class="cover" style="height:420px" src="{{ manga.cover.url }}" alt="Portada de {{ manga.title }}">{% else %}<div class="cover placeholder" style="height:420px">Portada no disponible</div>{% endif %}</div>
     <section>
@@ -12,7 +12,7 @@
       <p class="price">${{ manga.price }}</p>
       <p>{{ manga.get_status_display }}{% if manga.stock %} · {{ manga.stock }} unidades{% endif %}</p>
       {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
-        <form method="post" action="{% url 'cart:add' manga.pk %}">{% csrf_token %}<button type="submit">Agregar al carrito</button></form>
+        <form method="post" action="{% url 'carrito:agregar' manga.pk %}">{% csrf_token %}<button type="submit">Agregar al carrito</button></form>
       {% endif %}
     </section>
   </div>

@@ -1,6 +1,36 @@
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import UserCreationForm
 
-from .models import Genre, Manga
+from .models import Genre, Manga, UserProfile
+
+
+class RegistrationForm(UserCreationForm):
+    email = forms.EmailField(label="Correo electrónico")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form-control"
+
+    class Meta(UserCreationForm.Meta):
+        model = get_user_model()
+        fields = ("username", "email")
+
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ("rut", "phone", "institutional_role")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = (
+                "form-select"
+                if isinstance(field.widget, forms.Select)
+                else "form-control"
+            )
 
 
 class MangaForm(forms.ModelForm):

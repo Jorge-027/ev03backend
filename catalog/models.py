@@ -1,8 +1,39 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
+
+
+class UserProfile(models.Model):
+    class InstitutionalRole(models.TextChoices):
+        STUDENT = "student", "Estudiante"
+        TEACHER = "teacher", "Docente"
+        STAFF = "staff", "Personal"
+        OTHER = "other", "Otro"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+        verbose_name="usuario",
+    )
+    rut = models.CharField("RUT", max_length=12, blank=True)
+    phone = models.CharField("teléfono", max_length=30, blank=True)
+    institutional_role = models.CharField(
+        "rol institucional",
+        max_length=12,
+        choices=InstitutionalRole.choices,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = "perfil de usuario"
+        verbose_name_plural = "perfiles de usuario"
+
+    def __str__(self):
+        return f"Perfil de {self.user.get_username()}"
 
 
 class Genre(models.Model):

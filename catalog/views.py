@@ -1,16 +1,19 @@
 from decimal import Decimal
+from uuid import uuid4
 
 from django.contrib import messages
-from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.http import urlencode, url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import GenreForm, MangaForm
-from .models import Genre, Manga
+from .forms import GenreForm, MangaForm, RegistrationForm, UserProfileForm
+from .models import Genre, Manga, UserProfile
 
 
 def catalog(request):
@@ -50,7 +53,7 @@ def catalog(request):
 
     return render(
         request,
-        "catalog/catalog.html",
+        "catalogo/catalogo.html",
         {
             "mangas": page_obj.object_list,
             "page_obj": page_obj,
@@ -70,7 +73,7 @@ def manga_detail(request, slug):
         is_active=True,
         genre__is_active=True,
     )
-    return render(request, "catalog/manga_detail.html", {"manga": manga})
+    return render(request, "catalogo/detalle_manga.html", {"manga": manga})
 
 
 def cart_detail(request):
@@ -91,8 +94,8 @@ def cart_detail(request):
     total = sum((item["subtotal"] for item in items), Decimal("0.00"))
     return render(
         request,
-        "catalog/cart.html",
-        {"items": items, "total": total},
+        "catalogo/carrito.html",
+        {"items": items, "subtotal": total, "tax": Decimal("0.00"), "total": total},
     )
 
 
@@ -123,7 +126,7 @@ def cart_add(request, manga_id):
         require_https=request.is_secure(),
     ):
         return redirect(referrer)
-    return redirect("catalog:catalog")
+    return redirect("catalogo:catalogo")
 
 
 @require_POST
@@ -132,24 +135,34 @@ def cart_update(request, manga_id):
     key = str(manga_id)
     if key in cart:
         try:
-            quantity = int(request.POST.get("quantity", "0"))
+            quantity = int(request.POST.get("quantity", ""))
         except ValueError:
-            quantity = 0
-        manga = Manga.objects.filter(
-            pk=manga_id,
-            is_active=True,
-            genre__is_active=True,
-        ).first()
-        if quantity <= 0 or manga is None:
-            cart.pop(key)
-        elif manga.stock and quantity > manga.stock:
-            messages.error(request, "La cantidad supera las unidades disponibles.")
-        elif manga.stock == 0 and manga.status != Manga.Status.PREORDER:
+            messages.error(request, "Ingresa una cantidad entera válida.")
+            return redirect("carrito:detalle")
+        if quantity < 0:
+            messages.error(request, "La cantidad no puede ser negativa.")
+            return redirect("carrito:detalle")
+        if quantity == 0:
             cart.pop(key)
         else:
-            cart[key] = quantity
+            manga = Manga.objects.filter(
+                pk=manga_id,
+                is_active=True,
+                genre__is_active=True,
+                status__in=(Manga.Status.AVAILABLE, Manga.Status.PREORDER),
+            ).first()
+            if manga is None:
+                cart.pop(key)
+                messages.error(request, "Este manga ya no está disponible.")
+            elif manga.stock and quantity > manga.stock:
+                messages.error(request, "La cantidad supera las unidades disponibles.")
+            elif manga.stock == 0 and manga.status != Manga.Status.PREORDER:
+                cart.pop(key)
+                messages.error(request, "Este manga ya no tiene unidades disponibles.")
+            else:
+                cart[key] = quantity
         request.session["cart"] = cart
-    return redirect("cart:detail")
+    return redirect("carrito:detalle")
 
 
 @require_POST
@@ -157,27 +170,121 @@ def cart_remove(request, manga_id):
     cart = request.session.get("cart", {})
     cart.pop(str(manga_id), None)
     request.session["cart"] = cart
-    return redirect("cart:detail")
+    return redirect("carrito:detalle")
 
 
 @require_POST
 def cart_clear(request):
     request.session["cart"] = {}
-    return redirect("cart:detail")
+    return redirect("carrito:detalle")
+
+
+@require_POST
+def cart_checkout(request):
+    cart = request.session.get("cart", {})
+    if not cart:
+        messages.error(request, "Agrega mangas antes de generar una solicitud.")
+        return redirect("carrito:detalle")
+
+    mangas = Manga.objects.filter(
+        pk__in=cart.keys(),
+        is_active=True,
+        genre__is_active=True,
+        status__in=(Manga.Status.AVAILABLE, Manga.Status.PREORDER),
+    ).select_related("genre")
+    receipt_items = []
+    for manga in mangas:
+        quantity = cart.get(str(manga.pk))
+        if not isinstance(quantity, int) or quantity < 1:
+            messages.error(request, "El carrito contiene una cantidad no válida.")
+            return redirect("carrito:detalle")
+        if manga.stock and quantity > manga.stock:
+            messages.error(
+                request,
+                f"El stock de «{manga.title}» cambió. Ajusta la cantidad antes de continuar.",
+            )
+            return redirect("carrito:detalle")
+        if manga.stock == 0 and manga.status != Manga.Status.PREORDER:
+            messages.error(request, f"«{manga.title}» ya no está disponible.")
+            return redirect("carrito:detalle")
+        line_total = manga.price * quantity
+        receipt_items.append(
+            {
+                "title": manga.title,
+                "code": manga.code,
+                "quantity": quantity,
+                "unit_price": str(manga.price),
+                "subtotal": str(line_total),
+            }
+        )
+
+    if len(receipt_items) != len(cart):
+        messages.error(
+            request,
+            "Uno o más mangas ya no están disponibles. Revisa el carrito.",
+        )
+        return redirect("carrito:detalle")
+
+    subtotal = sum(
+        (Decimal(item["subtotal"]) for item in receipt_items),
+        Decimal("0.00"),
+    )
+    request.session["cart_receipt"] = {
+        "number": uuid4().hex[:12].upper(),
+        "created_at": timezone.localtime().strftime("%d-%m-%Y %H:%M"),
+        "items": receipt_items,
+        "subtotal": str(subtotal),
+        "tax": "0.00",
+        "total": str(subtotal),
+    }
+    request.session["cart"] = {}
+    return redirect("carrito:boleta")
+
+
+def cart_receipt(request):
+    receipt = request.session.get("cart_receipt")
+    if not receipt:
+        messages.info(request, "No hay una solicitud reciente en esta sesión.")
+        return redirect("carrito:detalle")
+    return render(request, "catalogo/boleta.html", {"receipt": receipt})
 
 
 def _is_staff(user):
     return user.is_authenticated and user.is_staff
 
 
-staff_required = user_passes_test(_is_staff, login_url="login")
+def staff_required(view_func):
+    protected_view = user_passes_test(_is_staff, login_url="login")(view_func)
+    return login_required(protected_view, login_url="login")
+
+
+def register(request):
+    form = RegistrationForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            user = form.save()
+            UserProfile.objects.create(user=user)
+        messages.success(request, "Cuenta creada. Ya puedes iniciar sesión.")
+        return redirect("login")
+    return render(request, "cuenta/registrarse.html", {"form": form})
+
+
+@login_required
+def profile(request):
+    user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    form = UserProfileForm(request.POST or None, instance=user_profile)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Perfil actualizado.")
+        return redirect("perfil")
+    return render(request, "cuenta/perfil.html", {"form": form})
 
 
 @staff_required
 def backoffice_dashboard(request):
     return render(
         request,
-        "catalog/backoffice/dashboard.html",
+        "catalogo/administracion/panel.html",
         {
             "manga_count": Manga.objects.count(),
             "genre_count": Genre.objects.count(),
@@ -188,7 +295,7 @@ def backoffice_dashboard(request):
 @staff_required
 def backoffice_mangas(request):
     mangas = Manga.objects.select_related("genre").order_by("title")
-    return render(request, "catalog/backoffice/mangas.html", {"mangas": mangas})
+    return render(request, "catalogo/administracion/mangas.html", {"mangas": mangas})
 
 
 @staff_required
@@ -200,7 +307,7 @@ def manga_create(request):
         return redirect("backoffice:mangas")
     return render(
         request,
-        "catalog/backoffice/form.html",
+        "catalogo/administracion/formulario.html",
         {
             "form": form,
             "title": "Agregar manga",
@@ -219,7 +326,7 @@ def manga_edit(request, pk):
         return redirect("backoffice:mangas")
     return render(
         request,
-        "catalog/backoffice/form.html",
+        "catalogo/administracion/formulario.html",
         {
             "form": form,
             "title": "Editar manga",
@@ -241,7 +348,7 @@ def manga_deactivate(request, pk):
 @staff_required
 def backoffice_genres(request):
     genres = Genre.objects.order_by("name")
-    return render(request, "catalog/backoffice/genres.html", {"genres": genres})
+    return render(request, "catalogo/administracion/generos.html", {"genres": genres})
 
 
 @staff_required
@@ -253,7 +360,7 @@ def genre_create(request):
         return redirect("backoffice:genres")
     return render(
         request,
-        "catalog/backoffice/form.html",
+        "catalogo/administracion/formulario.html",
         {
             "form": form,
             "title": "Agregar género",
@@ -272,7 +379,7 @@ def genre_edit(request, pk):
         return redirect("backoffice:genres")
     return render(
         request,
-        "catalog/backoffice/form.html",
+        "catalogo/administracion/formulario.html",
         {
             "form": form,
             "title": "Editar género",

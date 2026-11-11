@@ -65,14 +65,16 @@
 <body>
   <header>
     <nav>
-      <a class="brand" href="{% url 'catalog:catalog' %}">Manga Nook</a>
-      <a href="{% url 'catalog:catalog' %}">Catálogo</a>
-      <a href="{% url 'cart:detail' %}">Carrito ({{ cart_item_count }})</a>
-      {% if user.is_staff %}<a href="{% url 'backoffice:dashboard' %}">Backoffice</a>{% endif %}
+      <a class="brand" href="{% url 'catalogo:catalogo' %}">Manga Nook</a>
+      <a href="{% url 'catalogo:catalogo' %}">Catálogo</a>
+      <a href="{% url 'carrito:detalle' %}">Carrito ({{ cart_item_count }})</a>
+      {% if user.is_staff %}<a href="{% url 'backoffice:dashboard' %}">Administración</a>{% endif %}
       {% if user.is_authenticated %}
+        <a href="{% url 'perfil' %}">Mi perfil</a>
         <form class="inline" method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="button secondary" type="submit">Salir</button></form>
       {% else %}
         <a href="{% url 'login' %}">Ingresar</a>
+        <a href="{% url 'registrarse' %}">Crear cuenta</a>
       {% endif %}
     </nav>
   </header>
