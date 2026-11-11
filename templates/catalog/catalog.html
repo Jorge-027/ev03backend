@@ -4,25 +4,49 @@
   <h1>Catálogo de manga</h1>
   <p class="muted">Busca y explora el catálogo. Las novedades aparecerán aquí cuando agregues tus mangas.</p>
   <form class="filters" method="get">
-    <div><label for="q">Buscar</label><input id="q" name="q" value="{{ query }}" placeholder="Título, autor, código o descripción"></div>
-    <div><label for="genero">Género</label><select id="genero" name="genero"><option value="">Todos los géneros</option>{% for genre in genres %}<option value="{{ genre.slug }}" {% if selected_genre == genre.slug %}selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></div>
+    <div><label for="q" class="form-label">Buscar</label><input class="form-control" id="q" name="q" value="{{ query }}" placeholder="Título, autor, código o descripción"></div>
+    <div><label for="genero" class="form-label">Género</label><select class="form-select" id="genero" name="genero"><option value="">Todos los géneros</option>{% for genre in genres %}<option value="{{ genre.slug }}" {% if selected_genre == genre.slug %}selected{% endif %}>{{ genre.name }}</option>{% endfor %}</select></div>
+    <div><label for="orden" class="form-label">Ordenar</label><select class="form-select" id="orden" name="orden">
+      <option value="title" {% if selected_ordering == "title" %}selected{% endif %}>Título A-Z</option>
+      <option value="-title" {% if selected_ordering == "-title" %}selected{% endif %}>Título Z-A</option>
+      <option value="price" {% if selected_ordering == "price" %}selected{% endif %}>Menor precio</option>
+      <option value="-price" {% if selected_ordering == "-price" %}selected{% endif %}>Mayor precio</option>
+      <option value="newest" {% if selected_ordering == "newest" %}selected{% endif %}>Más recientes</option>
+    </select></div>
     <button type="submit">Filtrar</button>
   </form>
-  <section class="grid">
+  <section class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-3">
     {% for manga in mangas %}
-      <article class="card">
-        <a href="{% url 'catalog:manga_detail' manga.slug %}">
-          {% if manga.cover %}<img class="cover" src="{{ manga.cover.url }}" alt="Portada de {{ manga.title }}">{% else %}<div class="cover placeholder">Portada no disponible</div>{% endif %}
-          <h2>{{ manga.title }}</h2>
-        </a>
-        <p class="muted">{{ manga.genre.name }}{% if manga.author %} · {{ manga.author }}{% endif %}</p>
-        <p class="price">${{ manga.price }}</p>
-        {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
-          <form method="post" action="{% url 'cart:add' manga.pk %}">{% csrf_token %}<button type="submit">Agregar al carrito</button></form>
-        {% else %}<p class="muted">{{ manga.get_status_display }}</p>{% endif %}
-      </article>
+      <div class="col">
+        <article class="card h-100">
+          <a href="{% url 'catalog:manga_detail' manga.slug %}">
+            {% if manga.cover %}<img class="catalog-cover" src="{{ manga.cover.url }}" alt="Portada de {{ manga.title }}">{% else %}<div class="catalog-cover cover placeholder">Portada no disponible</div>{% endif %}
+          </a>
+          <div class="card-body d-flex flex-column">
+            <h2 class="h5 card-title"><a href="{% url 'catalog:manga_detail' manga.slug %}">{{ manga.title }}</a></h2>
+            <p class="muted mb-2">{{ manga.genre.name }}{% if manga.author %} · {{ manga.author }}{% endif %}</p>
+            <p class="price mt-auto">${{ manga.price }}</p>
+            {% if manga.status == "available" and manga.stock > 0 or manga.status == "preorder" %}
+              <form method="post" action="{% url 'cart:add' manga.pk %}">{% csrf_token %}<button class="btn btn-dark" type="submit">Agregar al carrito</button></form>
+            {% else %}<p class="muted mb-0">{{ manga.get_status_display }}</p>{% endif %}
+          </div>
+        </article>
+      </div>
     {% empty %}
-      <div class="panel"><h2>Tu catálogo está listo para crecer</h2><p>Aún no hay mangas para mostrar. Cuando agregues el primero desde el backoffice, aparecerá aquí.</p></div>
+      <div class="col-12"><div class="panel"><h2>Tu catálogo está listo para crecer</h2><p>Aún no hay mangas para mostrar. Cuando agregues el primero desde el backoffice, aparecerá aquí.</p></div></div>
     {% endfor %}
   </section>
+  {% if page_obj.has_other_pages %}
+    <nav aria-label="Paginación del catálogo" class="mt-4">
+      <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">Anterior</span></li>{% endif %}
+        <li class="page-item active" aria-current="page"><span class="page-link">{{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}">Siguiente</a></li>
+        {% else %}<li class="page-item disabled"><span class="page-link">Siguiente</span></li>{% endif %}
+      </ul>
+    </nav>
+  {% endif %}
 {% endblock %}

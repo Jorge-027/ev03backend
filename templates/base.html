@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Manga Nook{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <style>
     :root { color-scheme:light; --ink:#191919; --muted:#707070; --paper:#e8e8e8; --surface:#fff; --accent:#222; --line:#d5d5d5; --soft:#ececea; }
     * { box-sizing:border-box; }
@@ -30,12 +31,13 @@
     input:focus,select:focus,textarea:focus { outline:2px solid #777; outline-offset:1px; border-color:#555; }
     label { display:block; font-weight:650; margin:12px 0 5px; }
     form.inline { display:inline; }
-    .filters { display:grid; grid-template-columns:2fr 1fr auto; gap:12px; align-items:end; margin:22px 0; }
+    .filters { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:12px; align-items:end; margin:22px 0; }
     .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:18px; }
-    .card,.panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:18px; }
-    .card { transition:border-color .15s ease,transform .15s ease; }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:18px; }
+    .card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:0; transition:border-color .15s ease,transform .15s ease; }
     .card:hover { border-color:#aaa; transform:translateY(-2px); }
     .card a { text-decoration:none; }
+    .catalog-cover { display:block; width:100%; height:245px; object-fit:contain; background:var(--soft); border-radius:9px 9px 0 0; }
     .cover { display:block; width:100%; height:245px; object-fit:contain; background:var(--soft); border-radius:6px; margin-bottom:12px; }
     .cover.placeholder { display:grid; place-items:center; color:var(--muted); }
     .price { font-weight:750; font-size:1.1rem; }
@@ -48,7 +50,14 @@
     th { color:#555; font-size:.88rem; font-weight:650; }
     tr:last-child td { border-bottom:0; }
     .form-card { max-width:680px; }
+    .form-card .form-check { display:flex; align-items:center; gap:9px; margin:14px 0; }
+    .form-card .form-check-input { width:1.1em; margin:0; }
+    .form-card .errorlist { margin:5px 0 0; padding:0; color:#444; list-style:none; font-size:.9rem; }
+    .form-card .invalid-feedback { display:block; }
+    .pagination .page-link { color:#222; }
+    .pagination .active .page-link { background:#222; border-color:#222; color:#fff; }
     footer { border-top:1px solid var(--line); padding:22px; text-align:center; color:var(--muted); }
+    @media(max-width:800px) { .filters { grid-template-columns:1fr 1fr; } }
     @media(max-width:650px) { .filters { grid-template-columns:1fr; } nav { gap:12px; } main { padding-top:28px; } }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; } }
   </style>

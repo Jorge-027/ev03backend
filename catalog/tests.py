@@ -1,13 +1,18 @@
 from decimal import Decimal
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db.models.deletion import ProtectedError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from PIL import Image
 
 from .admin import GenreAdmin, MangaAdmin
+from .forms import MangaForm
 from .models import Genre, Manga
 
 
@@ -55,6 +60,36 @@ class PublicCatalogTests(StoreTestCase):
         response = self.client.get(
             reverse("catalog:catalog"),
             {"q": "TEST-001", "genero": "shonen"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Manga de prueba")
+
+    def test_catalog_supports_price_ordering_and_pagination(self):
+        for index in range(12):
+            Manga.objects.create(
+                genre=self.genre,
+                title=f"Manga adicional {index:02}",
+                code=f"ADD-{index:03}",
+                price=Decimal(index + 1),
+                stock=1,
+            )
+
+        response = self.client.get(reverse("catalog:catalog"), {"orden": "price"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 13)
+        self.assertEqual(response.context["mangas"][0].price, Decimal("1"))
+        self.assertTrue(response.context["page_obj"].has_next())
+        self.assertContains(response, "page=2")
+
+    def test_catalog_searches_description_and_detail_accepts_code(self):
+        self.manga.description = "Edición especial de colección"
+        self.manga.code = "TEST.001"
+        self.manga.save(update_fields=("description", "code"))
+        response = self.client.get(reverse("catalog:catalog"), {"q": "colección"})
+        self.assertContains(response, "Manga de prueba")
+
+        response = self.client.get(
+            reverse("catalog:manga_detail", args=(self.manga.code,))
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Manga de prueba")
@@ -156,6 +191,84 @@ class BackofficeTests(StoreTestCase):
         self.assertRedirects(response, reverse("backoffice:mangas"))
         manga.refresh_from_db()
         self.assertFalse(manga.is_active)
+
+    def test_staff_can_create_manga_with_uploaded_cover(self):
+        staff = get_user_model().objects.create_user(
+            username="staff-cover",
+            password="cover-password",
+            is_staff=True,
+        )
+        self.client.force_login(staff)
+        image_buffer = BytesIO()
+        Image.new("RGB", (1, 1)).save(image_buffer, format="JPEG")
+        image = SimpleUploadedFile(
+            "cover.jpg",
+            image_buffer.getvalue(),
+            content_type="image/jpeg",
+        )
+
+        with TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.post(
+                    reverse("backoffice:manga_create"),
+                    {
+                        "genre": self.genre.pk,
+                        "title": "Manga con portada",
+                        "slug": "",
+                        "author": "",
+                        "code": "COVER-001",
+                        "description": "",
+                        "price": "9.90",
+                        "stock": "1",
+                        "status": Manga.Status.AVAILABLE,
+                        "is_active": "on",
+                        "cover": image,
+                    },
+                )
+                self.assertRedirects(response, reverse("backoffice:mangas"))
+
+        manga = Manga.objects.get(code="COVER-001")
+        self.assertTrue(manga.cover.name.endswith("cover.jpg"))
+
+
+class MangaFormValidationTests(StoreTestCase):
+    def form_data(self, **overrides):
+        data = {
+            "genre": self.genre.pk,
+            "title": "Otro manga",
+            "slug": "otro-manga",
+            "author": "",
+            "code": "OTHER-001",
+            "description": "",
+            "price": "10.00",
+            "stock": "2",
+            "status": Manga.Status.AVAILABLE,
+            "is_active": "on",
+        }
+        data.update(overrides)
+        return data
+
+    def test_form_rejects_duplicate_code_and_slug(self):
+        duplicate_code_form = MangaForm(
+            data=self.form_data(code=self.manga.code)
+        )
+        self.assertFalse(duplicate_code_form.is_valid())
+        self.assertIn("code", duplicate_code_form.errors)
+
+        duplicate_slug_form = MangaForm(
+            data=self.form_data(slug=self.manga.slug)
+        )
+        self.assertFalse(duplicate_slug_form.is_valid())
+        self.assertIn("slug", duplicate_slug_form.errors)
+
+    def test_form_rejects_negative_quantitative_values(self):
+        negative_price_form = MangaForm(data=self.form_data(price="-1.00"))
+        self.assertFalse(negative_price_form.is_valid())
+        self.assertIn("price", negative_price_form.errors)
+
+        negative_stock_form = MangaForm(data=self.form_data(stock="-1"))
+        self.assertFalse(negative_stock_form.is_valid())
+        self.assertIn("stock", negative_stock_form.errors)
 
 
 class PopulateDataCommandTests(TestCase):

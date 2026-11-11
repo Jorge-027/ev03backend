@@ -4,8 +4,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import urlencode, url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .forms import GenreForm, MangaForm
@@ -20,25 +21,44 @@ def catalog(request):
     genres = Genre.objects.filter(is_active=True)
     query = request.GET.get("q", "").strip()
     genre_slug = request.GET.get("genero", "").strip()
+    ordering_options = {
+        "title": "title",
+        "-title": "-title",
+        "price": "price",
+        "-price": "-price",
+        "newest": "-created_at",
+    }
+    ordering = request.GET.get("orden", "title")
+    if ordering not in ordering_options:
+        ordering = "title"
 
     if query:
         mangas = mangas.filter(
             Q(title__icontains=query)
-            | Q(author__icontains=query)
             | Q(code__icontains=query)
             | Q(description__icontains=query)
+            | Q(author__icontains=query)
         )
     if genre_slug:
         mangas = mangas.filter(genre__slug=genre_slug, genre__is_active=True)
+
+    mangas = mangas.order_by(ordering_options[ordering])
+    paginator = Paginator(mangas, 12)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
 
     return render(
         request,
         "catalog/catalog.html",
         {
-            "mangas": mangas,
+            "mangas": page_obj.object_list,
+            "page_obj": page_obj,
             "genres": genres,
             "query": query,
             "selected_genre": genre_slug,
+            "selected_ordering": ordering,
+            "querystring": urlencode(query_params),
         },
     )
 
@@ -46,7 +66,7 @@ def catalog(request):
 def manga_detail(request, slug):
     manga = get_object_or_404(
         Manga.objects.select_related("genre"),
-        slug=slug,
+        Q(slug=slug) | Q(code=slug),
         is_active=True,
         genre__is_active=True,
     )
